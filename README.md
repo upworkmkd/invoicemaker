@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Invoice Maker - Timesheet to Invoice Generator
 
 A Next.js application that automatically generates professional invoices from Excel timesheets.
