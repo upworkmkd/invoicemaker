@@ -6,7 +6,7 @@ import { calculateSubtotal, calculateTax, calculateTotal } from './invoiceCalcul
 import { getPreviousMonth } from './dateUtils';
 
 export const createInvoiceFromTimesheet = async (
-  timesheetPath: string,
+  timesheetPathOrBuffer: string | Buffer,
   month?: string,
   year?: string
 ): Promise<Invoice> => {
@@ -14,7 +14,7 @@ export const createInvoiceFromTimesheet = async (
   
   // Parse timesheet
   const { items, totalHours, month: parsedMonth } = await parseTimesheet(
-    timesheetPath,
+    timesheetPathOrBuffer,
     config.invoice.hourlyRate,
     config.timesheet.dateColumn,
     config.timesheet.hoursColumn,

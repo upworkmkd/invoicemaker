@@ -16,7 +16,7 @@ export interface TimesheetData {
 }
 
 export const parseTimesheet = async (
-  filePath: string,
+  filePathOrBuffer: string | Buffer,
   hourlyRate: number,
   dateColumn: string = 'A',
   hoursColumn: string = 'B',
@@ -25,32 +25,44 @@ export const parseTimesheet = async (
   sheetName?: string
 ): Promise<{ items: InvoiceItem[]; totalHours: number; month: string }> => {
   try {
-    // Verify file exists before reading
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`Timesheet file not found: ${filePath}`);
+    let fileBuffer: Buffer;
+    
+    // Handle both file path (local) and buffer (serverless)
+    if (typeof filePathOrBuffer === 'string') {
+      // Verify file exists before reading
+      if (!fs.existsSync(filePathOrBuffer)) {
+        throw new Error(`Timesheet file not found: ${filePathOrBuffer}`);
+      }
+      
+      // Verify file is readable
+      try {
+        fs.accessSync(filePathOrBuffer, fs.constants.R_OK);
+      } catch (accessError) {
+        // Try to fix permissions
+        try {
+          fs.chmodSync(filePathOrBuffer, 0o644);
+          // Try accessing again
+          fs.accessSync(filePathOrBuffer, fs.constants.R_OK);
+        } catch (e) {
+          // Ignore permission errors in serverless environments
+        }
+      }
+      
+      // Get file stats to verify it's not empty
+      const stats = fs.statSync(filePathOrBuffer);
+      if (stats.size === 0) {
+        throw new Error(`Timesheet file is empty: ${filePathOrBuffer}`);
+      }
+      
+      // Read the Excel file - use buffer approach for better compatibility
+      fileBuffer = fs.readFileSync(filePathOrBuffer);
+    } else {
+      // Already a buffer (serverless environment)
+      fileBuffer = filePathOrBuffer;
     }
     
-    // Verify file is readable
-    try {
-      fs.accessSync(filePath, fs.constants.R_OK);
-    } catch (accessError) {
-      // Try to fix permissions
-      fs.chmodSync(filePath, 0o644);
-      // Try accessing again
-      fs.accessSync(filePath, fs.constants.R_OK);
-    }
-    
-    // Get file stats to verify it's not empty
-    const stats = fs.statSync(filePath);
-    if (stats.size === 0) {
-      throw new Error(`Timesheet file is empty: ${filePath}`);
-    }
-    
-    // Read the Excel file - use buffer approach for better compatibility
-    // Reading as buffer is more reliable than readFile
-    const fileBuffer = fs.readFileSync(filePath);
     if (!fileBuffer || fileBuffer.length === 0) {
-      throw new Error(`Failed to read file or file is empty: ${filePath}`);
+      throw new Error(`Failed to read file or file is empty`);
     }
     
     const workbook = XLSX.read(fileBuffer, { 
