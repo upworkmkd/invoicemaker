@@ -9,6 +9,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const customPath = formData.get('timesheetPath') as string | null;
+    const sheetName = formData.get('sheetName') as string | null;
 
     if (!file && !customPath) {
       return NextResponse.json(
@@ -33,10 +34,10 @@ export async function POST(request: NextRequest) {
         );
       }
       
-      console.log(`Processing uploaded file in memory, size: ${buffer.length} bytes`);
+      console.log(`Processing uploaded file in memory, size: ${buffer.length} bytes, sheet: ${sheetName || 'default'}`);
       
       // Create invoice from buffer (no file system writes needed)
-      invoice = await createInvoiceFromTimesheet(buffer);
+      invoice = await createInvoiceFromTimesheet(buffer, undefined, undefined, sheetName || undefined);
     } else {
       // Use file path (for default timesheet or custom path)
       timesheetPath = customPath || getConfig().timesheet.path;

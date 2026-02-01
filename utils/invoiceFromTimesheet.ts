@@ -8,9 +8,13 @@ import { getPreviousMonth } from './dateUtils';
 export const createInvoiceFromTimesheet = async (
   timesheetPathOrBuffer: string | Buffer,
   month?: string,
-  year?: string
+  year?: string,
+  sheetName?: string
 ): Promise<Invoice> => {
   const config = getConfig();
+  
+  // Use provided sheetName or fall back to config
+  const targetSheetName = sheetName || config.timesheet.sheetName;
   
   // Parse timesheet
   const { items, totalHours, month: parsedMonth } = await parseTimesheet(
@@ -20,7 +24,7 @@ export const createInvoiceFromTimesheet = async (
     config.timesheet.hoursColumn,
     config.timesheet.descriptionColumn,
     config.timesheet.startRow,
-    config.timesheet.sheetName
+    targetSheetName
   );
 
   // Generate invoice number (use previous month by default)

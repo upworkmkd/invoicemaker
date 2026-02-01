@@ -86,6 +86,11 @@ export const TimesheetUpload: React.FC<TimesheetUploadProps> = ({ onInvoiceGener
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showSheetModal, setShowSheetModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [sheetNames, setSheetNames] = useState<string[]>([]);
+  const [selectedSheet, setSelectedSheet] = useState<string>('');
+  const [isLoadingSheets, setIsLoadingSheets] = useState(false);
 
   const handleFileSelect = async (file: File) => {
     if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
@@ -93,13 +98,57 @@ export const TimesheetUpload: React.FC<TimesheetUploadProps> = ({ onInvoiceGener
       return;
     }
 
-    setIsProcessing(true);
     setError(null);
     setSuccess(null);
-
+    setSelectedFile(file);
+    
+    // Fetch sheet names
+    setIsLoadingSheets(true);
     try {
       const formData = new FormData();
       formData.append('file', file);
+
+      const response = await fetch('/api/get-sheets', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to read sheet names');
+      }
+
+      const data = await response.json();
+      setSheetNames(data.sheetNames || []);
+      
+      if (data.sheetNames && data.sheetNames.length > 0) {
+        setSelectedSheet(data.sheetNames[0]); // Default to first sheet
+        setShowSheetModal(true);
+      } else {
+        setError('No sheets found in the Excel file');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to read sheet names');
+    } finally {
+      setIsLoadingSheets(false);
+    }
+  };
+
+  const handleProcessWithSheet = async () => {
+    if (!selectedFile || !selectedSheet) {
+      setError('Please select a sheet');
+      return;
+    }
+
+    setIsProcessing(true);
+    setError(null);
+    setSuccess(null);
+    setShowSheetModal(false);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('sheetName', selectedSheet);
 
       const response = await fetch('/api/process-timesheet', {
         method: 'POST',
@@ -114,6 +163,8 @@ export const TimesheetUpload: React.FC<TimesheetUploadProps> = ({ onInvoiceGener
       const data = await response.json();
       onInvoiceGenerated(data.invoice);
       setSuccess('Invoice generated successfully!');
+      setSelectedFile(null);
+      setSelectedSheet('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to process timesheet');
     } finally {
@@ -232,6 +283,104 @@ export const TimesheetUpload: React.FC<TimesheetUploadProps> = ({ onInvoiceGener
       {success && (
         <div style={styles.success}>
           {success}
+        </div>
+      )}
+
+      {/* Sheet Selection Modal */}
+      {showSheetModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }} onClick={() => setShowSheetModal(false)}>
+          <div style={{
+            backgroundColor: THEME.colors.background,
+            borderRadius: THEME.borderRadius.lg,
+            padding: THEME.spacing.xl,
+            maxWidth: '500px',
+            width: '90%',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{
+              fontSize: '20px',
+              fontWeight: 'bold',
+              marginBottom: THEME.spacing.md,
+              color: THEME.colors.textPrimary,
+            }}>
+              Select Sheet to Import
+            </h3>
+            
+            {isLoadingSheets ? (
+              <div style={styles.loading}>
+                <span>Loading sheets...</span>
+              </div>
+            ) : (
+              <>
+                <p style={{
+                  marginBottom: THEME.spacing.md,
+                  color: THEME.colors.textSecondary,
+                  fontSize: '14px',
+                }}>
+                  This Excel file contains {sheetNames.length} sheet{sheetNames.length !== 1 ? 's' : ''}. Please select which sheet to use for importing data.
+                </p>
+                
+                <select
+                  value={selectedSheet}
+                  onChange={(e) => setSelectedSheet(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: THEME.spacing.sm,
+                    borderRadius: THEME.borderRadius.md,
+                    border: `1px solid ${THEME.colors.border}`,
+                    fontSize: '14px',
+                    marginBottom: THEME.spacing.lg,
+                    backgroundColor: THEME.colors.surface,
+                    color: THEME.colors.textPrimary,
+                  }}
+                >
+                  {sheetNames.map((sheet) => (
+                    <option key={sheet} value={sheet}>
+                      {sheet}
+                    </option>
+                  ))}
+                </select>
+                
+                <div style={{
+                  display: 'flex',
+                  gap: THEME.spacing.md,
+                  justifyContent: 'flex-end',
+                }}>
+                  <button
+                    onClick={() => {
+                      setShowSheetModal(false);
+                      setSelectedFile(null);
+                      setSelectedSheet('');
+                    }}
+                    style={{
+                      ...styles.button,
+                      backgroundColor: THEME.colors.textSecondary,
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleProcessWithSheet}
+                    style={styles.button}
+                    disabled={!selectedSheet}
+                  >
+                    Import Data
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>
